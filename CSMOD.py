@@ -2,7 +2,8 @@ import math
 import vapoursynth as vs
 import havsfunc as haf
 import functools
-
+from y5gfunc import convolution, inflate
+from vsrgtools import remove_grain, repair
 def CSMOD(filtered, **args):
     """
         # CSMOD v0.2.5 ported from Contra-Sharpen mod 3.7 and Contra-Sharpen mod16 1.6
@@ -653,12 +654,12 @@ def CSMOD(filtered, **args):
         if nr_weight == 0:
             resize = resize
         elif nr_weight == 1:
-            resize = core.rgvs.Repair(resize, nrres, [1] if chroma or GRAYS else [1,0])
+            resize = repair(resize, nrres, [1] if chroma or GRAYS else [1,0])
         else:
             if chroma or GRAYS:
-                resize = core.std.Merge(resize, core.rgvs.Repair(resize, nrres, [1]), nr_weight)
+                resize = core.std.Merge(resize, repair(resize, nrres, [1]), nr_weight)
             else:
-                resize = core.std.Merge(resize, core.rgvs.Repair(resize, nrres, [1,0]), [nr_weight,0])
+                resize = core.std.Merge(resize, repair(resize, nrres, [1,0]), [nr_weight,0])
 
         return resize
 
@@ -676,7 +677,7 @@ def CSMOD(filtered, **args):
             if (opencl):
                 try:
                     nnedi3 = functools.partial(core.nnedi3cl.NNEDI3CL,\
-                                               device=device)
+                                                device=device)
                 except AttributeError:
                     try:
                         nnedi3 = core.znedi3.nnedi3
@@ -776,37 +777,37 @@ def CSMOD(filtered, **args):
     if defpclp:
         pre = pclip
     elif preblur <= -7:
-        pre = core.rgvs.RemoveGrain(fforpre, [19] if (chroma and prec) or GRAYS else [19, 0])
-        pre = core.rgvs.RemoveGrain(pre, [4] if (chroma and prec) or GRAYS else [4, 0])
+        pre = remove_grain(fforpre, [19] if (chroma and prec) or GRAYS else [19, 0])
+        pre = remove_grain(pre, [4] if (chroma and prec) or GRAYS else [4, 0])
     elif preblur == -6:
-        pre = core.rgvs.RemoveGrain(fforpre, [4] if (chroma and prec) or GRAYS else [4, 0])
-        pre = core.rgvs.RemoveGrain(pre, [11] if (chroma and prec) or GRAYS else [11, 0])
+        pre = remove_grain(fforpre, [4] if (chroma and prec) or GRAYS else [4, 0])
+        pre = remove_grain(pre, [11] if (chroma and prec) or GRAYS else [11, 0])
     elif preblur == -5:
-        pre = core.rgvs.RemoveGrain(fforpre, [20] if (chroma and prec) or GRAYS else [20, 0])
+        pre = remove_grain(fforpre, [20] if (chroma and prec) or GRAYS else [20, 0])
     elif preblur == -4:
-        pre = core.rgvs.RemoveGrain(fforpre, [4] if (chroma and prec) or GRAYS else [4, 0])
+        pre = remove_grain(fforpre, [4] if (chroma and prec) or GRAYS else [4, 0])
     elif preblur == -3:
-        pre = core.rgvs.RemoveGrain(fforpre, [11] if (chroma and prec) or GRAYS else [11, 0])
-        pre = core.rgvs.RemoveGrain(pre, [20] if (chroma and prec) or GRAYS else [20, 0])
-        pre = core.rgvs.RemoveGrain(pre, [20] if (chroma and prec) or GRAYS else [20, 0])
+        pre = remove_grain(fforpre, [11] if (chroma and prec) or GRAYS else [11, 0])
+        pre = remove_grain(pre, [20] if (chroma and prec) or GRAYS else [20, 0])
+        pre = remove_grain(pre, [20] if (chroma and prec) or GRAYS else [20, 0])
     elif preblur == -2:
-        pre = core.rgvs.RemoveGrain(fforpre, [11] if (chroma and prec) or GRAYS else [11, 0])
-        pre = core.rgvs.RemoveGrain(pre, [20] if (chroma and prec) or GRAYS else [20, 0])
+        pre = remove_grain(fforpre, [11] if (chroma and prec) or GRAYS else [11, 0])
+        pre = remove_grain(pre, [20] if (chroma and prec) or GRAYS else [20, 0])
     elif preblur == -1:
-        pre = core.rgvs.RemoveGrain(fforpre, [11] if (chroma and prec) or GRAYS else [11, 0])
+        pre = remove_grain(fforpre, [11] if (chroma and prec) or GRAYS else [11, 0])
     elif preblur == 1:
         spatial = haf.MinBlur(fforpre, preR, [0, 1, 2] if (chroma and prec) or GRAYS else [0])
         pre = spatial
     elif preblur == 2:
         spatial = haf.MinBlur(fforpre, preR, [0, 1, 2] if (chroma and prec) or GRAYS else [0])
         temporal = core.flux.SmoothT(spatial, 7, [0] if not (chroma and prec) or GRAYS else [0, 1, 2])
-        temporal = core.rgvs.Repair(temporal, spatial, [1] if prec or GRAYS else [1, 0])
+        temporal = repair(temporal, spatial, [1] if prec or GRAYS else [1, 0])
         mixed = core.std.Merge(temporal, spatial, 0.251)
         pre = mixed
     elif preblur >= 3:
         spatial = haf.MinBlur(fforpre, preR, [0, 1, 2] if (chroma and prec) or GRAYS else [0])
         temporal = core.flux.SmoothT(spatial, 7, [0, 1, 2] if (chroma and prec) or GRAYS else [0])
-        temporal = core.rgvs.Repair(temporal, spatial, [1] if prec or GRAYS else [1, 0])
+        temporal = repair(temporal, spatial, [1] if prec or GRAYS else [1, 0])
         pre = temporal
     else:
         pre = filtered
@@ -855,107 +856,107 @@ def CSMOD(filtered, **args):
         srcfinal8 = Depth(srcfinal, 8)
         # -1: Same as mtype=1 in TAA(sobel)
         if edgemask == -1:
-            edgemask = core.std.Convolution(prefinal8, [0, -1, 0, -1, 0, 1, 0, 1, 0], planes=0)
+            edgemask = convolution(prefinal8, [0, -1, 0, -1, 0, 1, 0, 1, 0], planes=0)
             mt = "x 7 < 0 255 ?"
-            edgemask = core.std.Expr(edgemask, [mt] if GRAYS else [mt, ""])
-            edgemask = core.std.Inflate(edgemask, planes=0)
+            edgemask = core.akarin.Expr(edgemask, [mt] if GRAYS else [mt, ""])
+            edgemask = inflate(edgemask, planes=0)
         # -2: Same as mtype=2 in TAA(roberts)
         elif edgemask == -2:
-            edgemask = core.std.Convolution(prefinal8, [0, 0, 0, 0, 2, -1, 0, -1, 0], planes=0)
+            edgemask = convolution(prefinal8, [0, 0, 0, 0, 2, -1, 0, -1, 0], planes=0)
             mt = "x 4 > 255 x ?"
-            edgemask = core.std.Expr(edgemask, [mt] if GRAYS else [mt, ""])
-            edgemask = core.std.Inflate(edgemask, planes=0)
+            edgemask = core.akarin.Expr(edgemask, [mt] if GRAYS else [mt, ""])
+            edgemask = inflate(edgemask, planes=0)
         # -3: Same as mtype=3 in TAA(prewitt)
         elif edgemask == -3:
-            edgemask1 = core.std.Convolution(prefinal8, [1, 1, 0, 1, 0, -1, 0, -1, -1], divisor=1, saturate=False, planes=0)
-            edgemask2 = core.std.Convolution(prefinal8, [1, 1, 1, 0, 0, 0, -1, -1, -1], divisor=1, saturate=False, planes=0)
-            edgemask3 = core.std.Convolution(prefinal8, [1, 0, -1, 1, 0, -1, 1, 0, -1], divisor=1, saturate=False, planes=0)
-            edgemask4 = core.std.Convolution(prefinal8, [0, -1, -1, 1, 0, -1, 1, 1, 0], divisor=1, saturate=False, planes=0)
+            edgemask1 = convolution(prefinal8, [1, 1, 0, 1, 0, -1, 0, -1, -1], divisor=1, saturate=False, planes=0)
+            edgemask2 = convolution(prefinal8, [1, 1, 1, 0, 0, 0, -1, -1, -1], divisor=1, saturate=False, planes=0)
+            edgemask3 = convolution(prefinal8, [1, 0, -1, 1, 0, -1, 1, 0, -1], divisor=1, saturate=False, planes=0)
+            edgemask4 = convolution(prefinal8, [0, -1, -1, 1, 0, -1, 1, 1, 0], divisor=1, saturate=False, planes=0)
             mt = "x y max z max a max 1.8 pow"
-            edgemask = core.std.Expr([edgemask1, edgemask2, edgemask3, edgemask4], [mt] if GRAYS else [mt, ""])
-            edgemask = core.rgvs.RemoveGrain(edgemask, [4] if GRAYS else [4, 0])
-            edgemask = core.std.Inflate(edgemask, planes=0)
-            edgemask = core.rgvs.RemoveGrain(edgemask, [20] if GRAYS else [20, 0])
+            edgemask = core.akarin.Expr([edgemask1, edgemask2, edgemask3, edgemask4], [mt] if GRAYS else [mt, ""])
+            edgemask = remove_grain(edgemask, [4] if GRAYS else [4, 0])
+            edgemask = inflate(edgemask, planes=0)
+            edgemask = remove_grain(edgemask, [20] if GRAYS else [20, 0])
         # -4: Same as mtype=4 in TAA(TEdgeMask)
         elif edgemask == -4:
             edgemask = core.tedgemask.TEdgeMask(prefinal8, planes=0)
             mt = "x " + str(edgethr * 3.0) + " <= x 2 / x 16 * ?"
-            edgemask = core.std.Expr(edgemask, [mt] if GRAYS else [mt, ""])
-            edgemask = core.std.Deflate(edgemask, planes=0)
-            edgemask = core.rgvs.RemoveGrain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11,0])
+            edgemask = core.akarin.Expr(edgemask, [mt] if GRAYS else [mt, ""])
+            edgemask = deflate(edgemask, planes=0)
+            edgemask = remove_grain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11,0])
         # -5: Same as mtype=5 in TAA(tcanny)
         elif edgemask == -5:
             edgemask = tcanny(srcfinal8, sigma=tcannysigma, mode=1, planes=0)
             mt = "x " + str(edgethr) + " <= x 2 / x 2 * ?"
-            edgemask = core.std.Expr(edgemask, [mt] if GRAYS else [mt, ""])
-            edgemask = core.rgvs.RemoveGrain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11,0])
-            edgemask = core.std.Inflate(edgemask, planes=0)
+            edgemask = core.akarin.Expr(edgemask, [mt] if GRAYS else [mt, ""])
+            edgemask = remove_grain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11,0])
+            edgemask = inflate(edgemask, planes=0)
         # -6: Same as mtype=6 in TAA(MSharpen)
         elif edgemask == -6:
             edgemask = core.msmoosh.MSharpen(prefinal8, threshold=edgethr//5, strength=0, mask=True, planes=0)
-            edgemask = core.rgvs.RemoveGrain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11,0])
+            edgemask = remove_grain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11,0])
         # -7: My own method of tcanny usage of AA mask
         elif edgemask <= -7:
             edgemask = tcanny(srcfinal8, sigma=tcannysigma, mode=1, planes=0)
             mt = "x " + str(edgethr) + " <= 0 x " + str(edgethr) + " - 64 * ?"
-            edgemask = core.std.Expr(edgemask, [mt] if GRAYS else [mt, ""])
-            edgemask = core.rgvs.RemoveGrain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11, 0])
-            edgemask = core.std.Inflate(edgemask, planes=0)
+            edgemask = core.akarin.Expr(edgemask, [mt] if GRAYS else [mt, ""])
+            edgemask = remove_grain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11, 0])
+            edgemask = inflate(edgemask, planes=0)
         # 1: Same as edgemaskHQ=False in LSFmod(min/max)
         elif edgemask == 1:
-            edgemask1 = core.std.Maximum(prefinal8, planes=0)
-            edgemask2 = core.std.Minimum(prefinal8, planes=0)
+            edgemask1 = maximum(prefinal8, planes=0)
+            edgemask2 = minimum(prefinal8, planes=0)
             mt = "x y - " + str(edgethr) + " / 0.86 pow 255 *"
-            edgemask = core.std.Expr([edgemask1,edgemask2], [mt] if GRAYS else [mt, ""])
-            edgemask = core.std.Inflate(edgemask, planes=0)
-            edgemask = core.std.Inflate(edgemask, planes=0)
-            edgemask = core.rgvs.RemoveGrain(edgemask, [11] if GRAYS else [11, 0])
+            edgemask = core.akarin.Expr([edgemask1,edgemask2], [mt] if GRAYS else [mt, ""])
+            edgemask = inflate(edgemask, planes=0)
+            edgemask = inflate(edgemask, planes=0)
+            edgemask = remove_grain(edgemask, [11] if GRAYS else [11, 0])
         # 2: Same as edgemaskHQ=True in LSFmod,
         elif edgemask == 2:
-            edgemask1 = core.std.Convolution(prefinal8, [8, 16, 8, 0, 0, 0, -8, -16, -8], divisor=4, saturate=False, planes=0)
-            edgemask2 = core.std.Convolution(prefinal8, [8, 0, -8, 16, 0, -16, 8, 0, -8], divisor=4, saturate=False, planes=0)
+            edgemask1 = convolution(prefinal8, [8, 16, 8, 0, 0, 0, -8, -16, -8], divisor=4, saturate=False, planes=0)
+            edgemask2 = convolution(prefinal8, [8, 0, -8, 16, 0, -16, 8, 0, -8], divisor=4, saturate=False, planes=0)
             mt = "x y max " + str(edgethr * 4) + " / 0.86 pow 255 *"
-            edgemask = core.std.Expr([edgemask1, edgemask2], [mt] if GRAYS else [mt, ""])
-            edgemask = core.std.Inflate(edgemask, planes=0)
-            edgemask = core.std.Inflate(edgemask, planes=0)
-            edgemask = core.rgvs.RemoveGrain(edgemask, [11] if GRAYS else [11, 0])
+            edgemask = core.akarin.Expr([edgemask1, edgemask2], [mt] if GRAYS else [mt, ""])
+            edgemask = inflate(edgemask, planes=0)
+            edgemask = inflate(edgemask, planes=0)
+            edgemask = remove_grain(edgemask, [11] if GRAYS else [11, 0])
         # 3: Same as sharpening mask in MCTD(prewitt)
         elif edgemask == 3:
-            edgemask1 = core.std.Convolution(prefinal8, [1, 1, 0, 1, 0, -1, 0, -1, -1], divisor=1, saturate=False, planes=0)
-            edgemask2 = core.std.Convolution(prefinal8, [1, 1, 1, 0, 0, 0, -1, -1, -1], divisor=1, saturate=False, planes=0)
-            edgemask3 = core.std.Convolution(prefinal8, [1, 0, -1, 1, 0, -1, 1, 0, -1], divisor=1, saturate=False, planes=0)
-            edgemask4 = core.std.Convolution(prefinal8, [0, -1, -1, 1, 0, -1, 1, 1, 0], divisor=1, saturate=False, planes=0)
+            edgemask1 = convolution(prefinal8, [1, 1, 0, 1, 0, -1, 0, -1, -1], divisor=1, saturate=False, planes=0)
+            edgemask2 = convolution(prefinal8, [1, 1, 1, 0, 0, 0, -1, -1, -1], divisor=1, saturate=False, planes=0)
+            edgemask3 = convolution(prefinal8, [1, 0, -1, 1, 0, -1, 1, 0, -1], divisor=1, saturate=False, planes=0)
+            edgemask4 = convolution(prefinal8, [0, -1, -1, 1, 0, -1, 1, 1, 0], divisor=1, saturate=False, planes=0)
             mt = "x y max z max a max"
-            edgemask = core.std.Expr([edgemask1, edgemask2, edgemask3, edgemask4], [mt] if GRAYS else [mt, ""])
+            edgemask = core.akarin.Expr([edgemask1, edgemask2, edgemask3, edgemask4], [mt] if GRAYS else [mt, ""])
             mt = "x " + str(round(edgethr * 0.25)) + " < 0 x ? 1.8 pow"
-            edgemask = core.std.Expr(edgemask, [mt] if GRAYS else [mt, ""])
-            edgemask = core.rgvs.RemoveGrain(edgemask, [4] if GRAYS else [4, 0])
-            edgemask = core.std.Inflate(edgemask, planes=0)
-            edgemask = core.rgvs.RemoveGrain(edgemask, [20] if GRAYS else [20, 0])
+            edgemask = core.akarin.Expr(edgemask, [mt] if GRAYS else [mt, ""])
+            edgemask = remove_grain(edgemask, [4] if GRAYS else [4, 0])
+            edgemask = inflate(edgemask, planes=0)
+            edgemask = remove_grain(edgemask, [20] if GRAYS else [20, 0])
         # 4: MSharpen mask,
         elif edgemask == 4:
             edgemask = core.msmoosh.MSharpen(prefinal8, threshold=edgethr//10, strength=0, mask=True, planes=0)
-            edgemask = core.rgvs.RemoveGrain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11, 0])
+            edgemask = remove_grain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11, 0])
         # 5: tcanny mask(less sensitive to noise)
         elif edgemask == 5:
             edgemask = tcanny(srcfinal8, sigma=tcannysigma, mode=1, planes=0)
             mt = "x " + str(edgethr * 0.5) + " <= 0 x " + str(edgethr * 0.5) + " - 2.4 pow ?"
-            edgemask = core.std.Expr(edgemask, [mt] if GRAYS else [mt, ""])
-            edgemask = core.rgvs.RemoveGrain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11, 0])
-            edgemask = core.std.Inflate(edgemask, planes=0)
+            edgemask = core.akarin.Expr(edgemask, [mt] if GRAYS else [mt, ""])
+            edgemask = remove_grain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11, 0])
+            edgemask = inflate(edgemask, planes=0)
         # 6: prewitt mask with mt_hysteresis(less sensitive to noise)
         else:
-            edgemask1 = core.std.Convolution(prefinal8, [1, 1, 0, 1, 0, -1, 0, -1, -1], divisor=1, saturate=False, planes=0)
-            edgemask2 = core.std.Convolution(prefinal8, [1, 1, 1, 0, 0, 0, -1, -1, -1], divisor=1, saturate=False, planes=0)
-            edgemask3 = core.std.Convolution(prefinal8, [1, 0, -1, 1, 0, -1, 1, 0, -1], divisor=1, saturate=False, planes=0)
-            edgemask4 = core.std.Convolution(prefinal8, [0, -1, -1, 1, 0, -1, 1, 1, 0], divisor=1, saturate=False, planes=0)
+            edgemask1 = convolution(prefinal8, [1, 1, 0, 1, 0, -1, 0, -1, -1], divisor=1, saturate=False, planes=0)
+            edgemask2 = convolution(prefinal8, [1, 1, 1, 0, 0, 0, -1, -1, -1], divisor=1, saturate=False, planes=0)
+            edgemask3 = convolution(prefinal8, [1, 0, -1, 1, 0, -1, 1, 0, -1], divisor=1, saturate=False, planes=0)
+            edgemask4 = convolution(prefinal8, [0, -1, -1, 1, 0, -1, 1, 1, 0], divisor=1, saturate=False, planes=0)
             mt = "x y max z max a max"
-            prewittm = core.std.Expr([edgemask1, edgemask2, edgemask3, edgemask4], [mt] if GRAYS else [mt, ""])
+            prewittm = core.akarin.Expr([edgemask1, edgemask2, edgemask3, edgemask4], [mt] if GRAYS else [mt, ""])
             mt = "x " + str(round(edgethr * 0.5)) + " < 0 x ?"
-            prewittm = core.std.Expr(prewittm, [mt] if GRAYS else [mt, ""])
-            prewitt = core.rgvs.RemoveGrain(prewittm, [4] if GRAYS else [4, 0])
+            prewittm = core.akarin.Expr(prewittm, [mt] if GRAYS else [mt, ""])
+            prewitt = remove_grain(prewittm, [4] if GRAYS else [4, 0])
             edgemask = core.misc.Hysteresis(prewitt, prewittm, [0])
-            edgemask = core.rgvs.RemoveGrain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11, 0])
+            edgemask = remove_grain(edgemask, [20 if HD else 11] if GRAYS else [20 if HD else 11, 0])
 
         # 1~6 are masks tweaked for Sharpening, -1~-7 are masks tweaked for AA.
         # Otherwise define a custom edge mask clip, only luma is taken to merge all planes.
@@ -964,12 +965,12 @@ def CSMOD(filtered, **args):
 
     def average(clipa, clipb, planes=[0, 1, 2]):
         if 1 or 2 in planes:
-            return (core.std.Expr(clips=[clipa, clipb], expr=["x y + 2 /"]))
+            return (core.akarin.Expr(clips=[clipa, clipb], expr=["x y + 2 /"]))
         else:
             if not GRAYS:
-                return (core.std.Expr(clips=[clipa, clipb], expr=["x y + 2 /", ""]))
+                return (core.akarin.Expr(clips=[clipa, clipb], expr=["x y + 2 /", ""]))
             else:
-                return (core.std.Expr(clips=[clipa, clipb], expr=["x y + 2 /"]))
+                return (core.akarin.Expr(clips=[clipa, clipb], expr=["x y + 2 /"]))
     # unsharp
     dark_limit = haf.mt_inpand_multi(pre, planes=[0, 1, 2] if chroma or GRAYS else [0])
     bright_limit = haf.mt_expand_multi(pre, planes=[0, 1, 2] if chroma or GRAYS else [0])
@@ -984,24 +985,24 @@ def CSMOD(filtered, **args):
     else:
         if type(kernel) != type(CALL):
             if kernel <= 1:
-                method = core.rgvs.RemoveGrain(method, [11] if chroma or GRAYS else [11, 0])
+                method = remove_grain(method, [11] if chroma or GRAYS else [11, 0])
             elif kernel == 2:
-                method = core.rgvs.RemoveGrain(method, [20] if chroma or GRAYS else [20, 0])
+                method = remove_grain(method, [20] if chroma or GRAYS else [20, 0])
             elif kernel == 3:
-                method = core.rgvs.RemoveGrain(method, [11] if chroma or GRAYS else [11, 0])
-                method = core.rgvs.RemoveGrain(method, [20] if chroma or GRAYS else [20, 0])
+                method = remove_grain(method, [11] if chroma or GRAYS else [11, 0])
+                method = remove_grain(method, [20] if chroma or GRAYS else [20, 0])
             elif kernel == 4:
-                method = core.rgvs.RemoveGrain(method, [11] if chroma or GRAYS else [11, 0])
-                method = core.rgvs.RemoveGrain(method, [20] if chroma or GRAYS else [20, 0])
-                method = core.rgvs.RemoveGrain(method, [20] if chroma or GRAYS else [20, 0])
+                method = remove_grain(method, [11] if chroma or GRAYS else [11, 0])
+                method = remove_grain(method, [20] if chroma or GRAYS else [20, 0])
+                method = remove_grain(method, [20] if chroma or GRAYS else [20, 0])
             elif kernel == 5:
-                method = core.rgvs.RemoveGrain(method, [4] if chroma or GRAYS else [4, 0])
+                method = remove_grain(method, [4] if chroma or GRAYS else [4, 0])
             elif kernel == 6:
-                method = core.rgvs.RemoveGrain(method, [4] if chroma or GRAYS else [4, 0])
-                method = core.rgvs.RemoveGrain(method, [11] if chroma or GRAYS else [11, 0])
+                method = remove_grain(method, [4] if chroma or GRAYS else [4, 0])
+                method = remove_grain(method, [11] if chroma or GRAYS else [11, 0])
             elif kernel == 7:
-                method = core.rgvs.RemoveGrain(method, [19] if chroma or GRAYS else [19, 0])
-                method = core.rgvs.RemoveGrain(method, [4] if chroma or GRAYS else [4, 0])
+                method = remove_grain(method, [19] if chroma or GRAYS else [19, 0])
+                method = remove_grain(method, [4] if chroma or GRAYS else [4, 0])
             else:
                 method == haf.MinBlur(method, 1, [0, 1, 2] if chroma or GRAYS else [0])
         else:
@@ -1023,7 +1024,7 @@ def CSMOD(filtered, **args):
 
         expr = "x y - abs {thr_1} <= x x y - abs {thr_2} >= y y x y - {thr_2} x y - abs - * {thr_slope} * + ? ?".format(thr_1=thr_1, thr_2=thr_2, thr_slope=thr_slope)
 
-        method = core.std.Expr([pre, method], [expr] if chroma or GRAYS else [expr, ""])
+        method = core.akarin.Expr([pre, method], [expr] if chroma or GRAYS else [expr, ""])
 
     # making difference clip for sharpening
     sharpdiff = core.std.MakeDiff(pre, method,[0, 1, 2] if chroma else [0])
@@ -1043,7 +1044,7 @@ def CSMOD(filtered, **args):
 
     # sharpening diff generate mode
     if isinstance(Smode, str):
-        sharpdiff = core.std.Expr(sharpdiff, [Smode] if chroma or GRAYS else [Smode, ""])
+        sharpdiff = core.akarin.Expr(sharpdiff, [Smode] if chroma or GRAYS else [Smode, ""])
     elif Smode <= 0:
         sharpdiff = sharpdiff
     elif Smode == 1:
@@ -1093,14 +1094,14 @@ def CSMOD(filtered, **args):
     def clamp(clip, Bclip, Dclip, overshoot=0, undershoot=0, planes=[0, 1, 2]):
         if 1 or 2 in planes:
             mt = 'x y {overshoot} + > y {overshoot} + x ? z {undershoot} - < z {undershoot} - x y {overshoot} + > y {overshoot} + x ? ?'.format(overshoot=overshoot, undershoot=undershoot)
-            output = core.std.Expr([clip, Bclip, Dclip], [mt])
+            output = core.akarin.Expr([clip, Bclip, Dclip], [mt])
             return output
         else:
             mt = 'x y {overshoot} + > y {overshoot} + x ? z {undershoot} - < z {undershoot} - x y {overshoot} + > y {overshoot} + x ? ?'.format(overshoot=overshoot, undershoot=undershoot)
             if not GRAYS:
-                output = core.std.Expr([output, Dclip, Dclip], [mt, ""])
+                output = core.akarin.Expr([output, Dclip, Dclip], [mt, ""])
             else:
-                output = core.std.Expr([clip, Bclip, Dclip], [mt])
+                output = core.akarin.Expr([clip, Bclip, Dclip], [mt])
             return output
 
     # spatial limit
@@ -1138,9 +1139,9 @@ def CSMOD(filtered, **args):
         const = 100 * multiple
         val = (100-Soft) * multiple
         SoftMP = multiple * Soft
-        sharpdiff2 = core.rgvs.RemoveGrain(sharpdiff, [19] if chroma or GRAYS else [19, 0])
+        sharpdiff2 = remove_grain(sharpdiff, [19] if chroma or GRAYS else [19, 0])
         mt = 'x {neutral} - abs y {neutral} - abs > y {SoftMP} * x {val} * + {const} / x ?'.format(neutral=neutral, val=val, const=const, SoftMP=SoftMP)
-        sharpdiff = core.std.Expr([sharpdiff, sharpdiff2], [mt] if chroma or GRAYS else [mt, ""])
+        sharpdiff = core.akarin.Expr([sharpdiff, sharpdiff2], [mt] if chroma or GRAYS else [mt, ""])
 
 
     # Soothe
@@ -1153,7 +1154,7 @@ def CSMOD(filtered, **args):
         const = 100 * multiple
         sharpdiff2 = core.focus2.TemporalSoften2(sharpdiff, 1, 255, 255 if chroma else 0, 32, 2)
         mt = 'x {neutral} - y {neutral} - * 0 < x {neutral} - {const} / {Soothe} * {neutral} + x {neutral} - abs y {neutral} - abs > x {Soothe} * y {const} {Soothe} - * + {const} / x ? ?'.format(neutral=neutral, Soothe=Soothe, const=const)
-        sharpdiff = core.std.Expr([sharpdiff, sharpdiff2], [mt] if chroma or GRAYS else [mt, ""])
+        sharpdiff = core.akarin.Expr([sharpdiff, sharpdiff2], [mt] if chroma or GRAYS else [mt, ""])
 
     # the difference achieved by filtering
     if limit:
@@ -1169,9 +1170,9 @@ def CSMOD(filtered, **args):
         sharpdiff = CSmod_nrSpline64Resize(sharpdiff, sw,sh, chroma, 0)
     if limit:
         if not GRAYS:
-            ssDD = core.rgvs.Repair(sharpdiff, allD, [Repmode, RepmodeU] if chroma else [Repmode, 0])
+            ssDD = repair(sharpdiff, allD, [Repmode, RepmodeU] if chroma else [Repmode, 0])
         else:
-            ssDD = core.rgvs.Repair(sharpdiff, allD, [Repmode])
+            ssDD = repair(sharpdiff, allD, [Repmode])
     else:
         ssDD = sharpdiff
     bits = sharpdiff.format.bits_per_sample
@@ -1185,9 +1186,9 @@ def CSMOD(filtered, **args):
         yexpr = 'x {neutral} - abs y {neutral} - abs {thrMP} + <= x y {neutral} < y {thrMP} - y {thrMP} + ? ?'.format(neutral=neutral, thrMP=thrMP)
         uvexpr = 'x {neutral} - abs y {neutral} - abs {thrcMP} + <= x y {neutral} < y {thrcMP} - y {thrcMP} + ? ?'.format(neutral=neutral, thrcMP=thrcMP)
         if not GRAYS:
-            ssDD = core.std.Expr([sharpdiff, ssDD], [yexpr, uvexpr] if chroma else [yexpr, ""])
+            ssDD = core.akarin.Expr([sharpdiff, ssDD], [yexpr, uvexpr] if chroma else [yexpr, ""])
         else:
-            ssDD = core.std.Expr([sharpdiff, ssDD], [yexpr])
+            ssDD = core.akarin.Expr([sharpdiff, ssDD], [yexpr])
     if not limit and (thr > 0 or thrc > 0):
         thrMP = thr * multiple
         thrcMP = thrc * multiple
@@ -1198,12 +1199,12 @@ def CSMOD(filtered, **args):
         yexpr = 'x {neutral} - abs {thrMP} <= x x {neutral} < {valm} {vala} ? ?'.format(neutral=neutral, thrMP=thrMP, valm=valm, vala=vala)
         uvexpr = 'x {neutral} - abs {thrcMP} <= x x {neutral} < {valcm} {valca} ? ?'.format(neutral=neutral, thrcMP=thrcMP, valcm=valcm, valca=valca)
         if not GRAYS:
-            ssDD = core.std.Expr(sharpdiff, [yexpr, uvexpr] if chroma else [yexpr, ""])
+            ssDD = core.akarin.Expr(sharpdiff, [yexpr, uvexpr] if chroma else [yexpr, ""])
         else:
-            ssDD = core.std.Expr(sharpdiff, [yexpr])
+            ssDD = core.akarin.Expr(sharpdiff, [yexpr])
     if limit and (thr == 0 and thrc == 0):
         mt = 'x {neutral} - abs y {neutral} - abs <= x y ?'.format(neutral=neutral)
-        ssDD = core.std.Expr([ssDD, sharpdiff], [mt] if chroma or GRAYS else [mt, ""])
+        ssDD = core.akarin.Expr([ssDD, sharpdiff], [mt] if chroma or GRAYS else [mt, ""])
     if ssrep and (ss_w > 1.0 or ss_h > 1.0) and not ssout:
         ssDD = CSmod_nrSpline64Resize(ssDD, sw,sh, chroma,0)
 
@@ -1225,20 +1226,20 @@ def CSMOD(filtered, **args):
     MVglobal = args.get('MVglobal', False)
     DCT = args.get('DCT', 0)
     f1v = core.mv.Analyse(super=sMVS, blksize=blksize, search=search, searchparam=searchparam,
-                          pelsearch=pelsearch, isb=False, chroma=chromamv, truemotion=truemotion,
-                          global_=MVglobal, overlap=overlap, dct=DCT)
+                            pelsearch=pelsearch, isb=False, chroma=chromamv, truemotion=truemotion,
+                            global_=MVglobal, overlap=overlap, dct=DCT)
 
     b1v = core.mv.Analyse(super=sMVS, blksize=blksize, search=search, searchparam=searchparam,
-                          pelsearch=pelsearch, isb=True, chroma=chromamv, truemotion=truemotion,
-                          global_=MVglobal, overlap=overlap, dct=DCT)
+                            pelsearch=pelsearch, isb=True, chroma=chromamv, truemotion=truemotion,
+                            global_=MVglobal, overlap=overlap, dct=DCT)
 
     thSAD = args.get('thSAD', 300)
     thSCD1 = args.get('thSCD1', 300)
     thSCD2 = args.get('thSCD2', 100)
     f1c = core.mv.Compensate(limitclp, rMVS, f1v, thsad=thSAD, thscd1=thSCD1, thscd2=thSCD2)
     b1c = core.mv.Compensate(limitclp, rMVS, b1v, thsad=thSAD, thscd1=thSCD1, thscd2=thSCD2)
-    Tmax = core.std.Expr([limitclp, f1c, b1c], ["x y max z max"] if chroma or GRAYS else ["x y max z max", ""])
-    Tmin = core.std.Expr([limitclp, f1c, b1c], ["x y min z min"] if chroma or GRAYS else ["x y min z min", ""])
+    Tmax = core.akarin.Expr([limitclp, f1c, b1c], ["x y max z max"] if chroma or GRAYS else ["x y max z max", ""])
+    Tmin = core.akarin.Expr([limitclp, f1c, b1c], ["x y min z min"] if chroma or GRAYS else ["x y min z min", ""])
     if Tlimit:
         sclp = clamp(sclp, Tmax, Tmin, Tovershoot, Tundershoot, [0, 1, 2] if chroma else [0])
 
